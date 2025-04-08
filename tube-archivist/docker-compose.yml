@@ -1,0 +1,65 @@
+version: "3.7"
+
+services:
+  archivist-elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.2
+    environment:
+      - discovery.type=single-node
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - xpack.security.enabled=true
+      - xpack.security.authc.api_key.enabled=true
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - "path.repo=/usr/share/elasticsearch/data/snapshot"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+
+  archivist-redis:
+    image: redis:alpine
+    container_name: archivist-redis
+    restart: unless-stopped
+    expose:
+      - "6379"
+    volumes:
+      - redis-data:/data
+    depends_on:
+      - archivist-elasticsearch
+
+  tube-archivist:
+    container_name: tubearchivist
+    image: bbilly1/tubearchivist
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      - archivist-elasticsearch
+      - archivist-redis
+    environment:
+      - ES_URL=http://archivist-elasticsearch:9200
+      - REDIS_HOST=archivist-redis
+      - HOST_UID=1000
+      - HOST_GID=1000
+      - TA_USERNAME=${TA_USERNAME}
+      - TA_PASSWORD=${TA_PASSWORD}
+      - TA_HOST_URL=${TA_HOST_URL}
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+    volumes:
+      - tube-archivist-data:/cache
+      - tube-archivist-media:/youtube
+    healthcheck:
+      test: ["CMD", "curl", "-f", "${HEALTHCHECK_TEST_URL}"]
+      interval: 2m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  elasticsearch-data:
+  redis-data:
+  tube-archivist-data:
+  tube-archivist-media:
