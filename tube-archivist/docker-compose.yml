@@ -2,13 +2,13 @@ version: "3.7"
 
 services:
   archivist-elasticsearch:
+    container_name: archivist-elasticsearch
     image: docker.elastic.co/elasticsearch/elasticsearch:8.17.2
     environment:
       - discovery.type=single-node
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
-      - xpack.security.enabled=true
-      - xpack.security.authc.api_key.enabled=true
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms2g -Xmx2g
       - "path.repo=/usr/share/elasticsearch/data/snapshot"
     ulimits:
       memlock:
@@ -18,6 +18,12 @@ services:
       - elasticsearch-data:/usr/share/elasticsearch/data
     ports:
       - "9200:9200"
+    healthcheck:
+      test: curl -s http://localhost:9200/_cluster/health | grep -q '"status":"green"'
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
 
   archivist-redis:
     image: redis:alpine
@@ -40,14 +46,16 @@ services:
       - archivist-elasticsearch
       - archivist-redis
     environment:
+      - TA_HOST=0.0.0.0
       - ES_URL=http://archivist-elasticsearch:9200
-      - REDIS_HOST=archivist-redis
+      - REDIS_CON=redis://archivist-redis:6379/0
       - HOST_UID=1000
       - HOST_GID=1000
       - TA_USERNAME=${TA_USERNAME}
       - TA_PASSWORD=${TA_PASSWORD}
       - TA_HOST_URL=${TA_HOST_URL}
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - ES_SSL_VERIFY=false
     volumes:
       - tube-archivist-data:/cache
       - tube-archivist-media:/youtube
